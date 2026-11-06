@@ -1,0 +1,670 @@
+# Rede Neural Simples com NumPy
+
+## 1. Visão geral
+
+Este projeto implementa, usando apenas **NumPy**, uma rede neural
+artificial do tipo *feedforward* (alimentação direta) com uma camada
+oculta. O treinamento é realizado manualmente por **retropropagação do
+erro** (*backpropagation*) e **descida do gradiente** (*gradient
+descent*).
+
+O objetivo do exemplo é demonstrar como os principais componentes de uma
+rede neural funcionam internamente:
+
+-   criação de dados e pesos;
+-   propagação direta (*forward pass*);
+-   cálculo da função de perda (*loss*);
+-   cálculo dos gradientes pela regra da cadeia;
+-   atualização dos pesos;
+-   acompanhamento da evolução do erro durante o treinamento.
+
+A implementação não utiliza frameworks de aprendizado de máquina, como
+PyTorch, TensorFlow ou Keras. Todas as operações matemáticas são feitas
+diretamente com arrays e operações matriciais do NumPy.
+
+> **Importante:** os dados de entrada e os valores esperados são gerados
+> aleatoriamente. Portanto, este exemplo é didático: não representa um
+> treinamento com uma base de dados real nem uma tarefa com significado
+> específico.
+
+------------------------------------------------------------------------
+
+## 2. Código completo
+
+``` python
+import numpy as np
+from numpy.random import randn
+
+N, D_in, H, D_out = 64, 1000, 100, 10
+x, y = randn(N, D_in), randn(N, D_out)
+w1, w2 = randn(D_in, H), randn(H, D_out)
+
+for t in range(2000):
+    h = 1 / (1 + np.exp(-x.dot(w1)))
+    y_pred = h.dot(w2)
+    loss = np.square(y_pred - y).sum()
+    print(t, loss)
+
+    grad_y_pred = 2.0 * (y_pred - y)
+    grad_w2 = h.T.dot(grad_y_pred)
+    grad_h = grad_y_pred.dot(w2.T)
+    grad_w1 = x.T.dot(grad_h * h * (1 - h))
+
+    w1 -= 1e-4 * grad_w1
+    w2 -= 1e-4 * grad_w2
+```
+
+------------------------------------------------------------------------
+
+## 3. Bibliotecas utilizadas
+
+### NumPy
+
+``` python
+import numpy as np
+```
+
+O NumPy é uma biblioteca Python voltada para computação numérica. Ele
+fornece estruturas como arrays multidimensionais e operações
+vetorizadas, permitindo realizar cálculos matriciais sem precisar
+implementar manualmente cada operação.
+
+Neste código, o NumPy é utilizado para:
+
+-   criar e manipular matrizes;
+-   realizar multiplicações matriciais;
+-   calcular a função exponencial;
+-   calcular o quadrado dos erros;
+-   somar os valores da função de perda.
+
+### `randn`
+
+``` python
+from numpy.random import randn
+```
+
+A função `randn` gera números aleatórios seguindo uma distribuição
+normal padrão, com média 0 e desvio padrão 1.
+
+Ela é utilizada para inicializar os dados e os pesos da rede. Como os
+valores são aleatórios, uma execução pode produzir resultados diferentes
+de outra.
+
+------------------------------------------------------------------------
+
+## 4. Estrutura da rede neural
+
+A rede possui três partes principais:
+
+1.  **Camada de entrada:** recebe os dados `x`.
+2.  **Camada oculta:** possui 100 neurônios e utiliza a função de
+    ativação sigmoide.
+3.  **Camada de saída:** produz 10 valores por amostra, sem uma função
+    de ativação adicional.
+
+Representação simplificada:
+
+``` text
+Entrada                 Camada oculta               Saída
+1000 características    100 neurônios               10 valores
+
+      x  ───────────────►  h  ─────────────────────► y_pred
+             w1                    w2
+```
+
+A rede é totalmente conectada entre camadas consecutivas: cada
+característica de entrada se conecta a todos os neurônios ocultos, e
+cada neurônio oculto se conecta a todas as saídas.
+
+### Dimensões utilizadas
+
+``` python
+N, D_in, H, D_out = 64, 1000, 100, 10
+```
+
+  Variável     Valor Significado
+  ---------- ------- ------------------------------------------
+  `N`             64 Quantidade de amostras
+  `D_in`        1000 Quantidade de características de entrada
+  `H`            100 Quantidade de neurônios na camada oculta
+  `D_out`         10 Quantidade de valores na saída
+
+Uma amostra possui 1000 características e a rede produz 10 valores para
+cada amostra. Como existem 64 amostras, a saída inteira possui 64 linhas
+e 10 colunas.
+
+### Geração dos dados
+
+``` python
+x, y = randn(N, D_in), randn(N, D_out)
+```
+
+São criadas duas matrizes:
+
+-   `x`: dados de entrada, com dimensão `(64, 1000)`;
+-   `y`: valores esperados, com dimensão `(64, 10)`.
+
+A matriz `x` contém os exemplos que serão apresentados à rede. A matriz
+`y` contém os valores de referência usados para calcular o erro das
+previsões.
+
+Neste experimento, ambas são aleatórias e independentes. Isso significa
+que não existe uma relação real previamente definida entre as entradas e
+as saídas.
+
+### Inicialização dos pesos
+
+``` python
+w1, w2 = randn(D_in, H), randn(H, D_out)
+```
+
+Os pesos determinam como os valores são combinados entre as camadas.
+
+  Matriz   Dimensão        Função
+  -------- --------------- -----------------------------------
+  `w1`     `(1000, 100)`   Conecta a entrada à camada oculta
+  `w2`     `(100, 10)`     Conecta a camada oculta à saída
+
+Os pesos também começam com valores aleatórios. Durante o treinamento,
+eles são ajustados para reduzir a função de perda.
+
+------------------------------------------------------------------------
+
+## 5. Etapas do treinamento
+
+``` python
+for t in range(2000):
+```
+
+O laço executa o processo de treinamento 2000 vezes. Cada repetição é
+uma **iteração de otimização**: a rede calcula uma previsão, mede o
+erro, calcula os gradientes e atualiza os pesos.
+
+Como todas as 64 amostras são utilizadas em cada iteração, o
+procedimento corresponde a uma forma de **descida do gradiente em lote
+completo** (*full-batch gradient descent*).
+
+### 5.1. Propagação direta (*forward pass*)
+
+A propagação direta calcula a saída da rede a partir dos dados de
+entrada e dos pesos atuais.
+
+#### Cálculo da camada oculta
+
+``` python
+h = 1 / (1 + np.exp(-x.dot(w1)))
+```
+
+Primeiro, ocorre a multiplicação entre a matriz de entrada `x` e a
+matriz de pesos `w1`:
+
+``` python
+x.dot(w1)
+```
+
+As dimensões são:
+
+``` text
+(64, 1000) × (1000, 100) = (64, 100)
+```
+
+O resultado contém 100 valores para cada uma das 64 amostras.
+
+Em seguida, é aplicada a função de ativação **sigmoide**:
+
+\[ `\sigma`{=tex}(z) = `\frac{1}{1 + e^{-z}}`{=tex} \]
+
+A sigmoide transforma cada valor em um número entre 0 e 1. Ela introduz
+não linearidade na rede, permitindo que ela represente relações mais
+complexas do que uma simples transformação linear.
+
+O resultado é armazenado em `h`, a saída da camada oculta, com dimensão
+`(64, 100)`.
+
+#### Cálculo da saída
+
+``` python
+y_pred = h.dot(w2)
+```
+
+A saída da camada oculta é multiplicada pelos pesos `w2`:
+
+``` text
+(64, 100) × (100, 10) = (64, 10)
+```
+
+O resultado é armazenado em `y_pred`.
+
+Essa variável representa as previsões da rede para as 64 amostras. Não
+há uma função de ativação aplicada à camada de saída, portanto ela
+produz valores reais sem restrição de intervalo.
+
+### 5.2. Cálculo da função de perda (*loss*)
+
+``` python
+loss = np.square(y_pred - y).sum()
+```
+
+A função de perda mede a diferença entre as previsões (`y_pred`) e os
+valores esperados (`y`).
+
+O cálculo acontece em três etapas:
+
+1.  `y_pred - y`: calcula a diferença entre cada previsão e seu valor
+    esperado;
+2.  `np.square(...)`: eleva cada diferença ao quadrado;
+3.  `.sum()`: soma todos os erros quadráticos.
+
+Matematicamente:
+
+\[ L = `\sum`{=tex}*{i=1}\^{N}`\sum`{=tex}*{j=1}\^{D\_{out}}
+(`\hat{y}`{=tex}*{ij} - y*{ij})\^2 \]
+
+Essa função é a **soma dos erros quadráticos** (*Sum of Squared Errors
+--- SSE*).
+
+Quanto menor o valor da perda, mais próximas estão as previsões dos
+valores esperados, considerando essa função de erro.
+
+O valor é exibido a cada iteração:
+
+``` python
+print(t, loss)
+```
+
+O primeiro número representa a iteração; o segundo, o valor da perda
+calculado naquela iteração.
+
+> A implementação utiliza a soma dos erros, e não a média. Por isso, o
+> valor da perda depende também da quantidade de amostras e de saídas.
+
+### 5.3. Retropropagação (*backpropagation*)
+
+Depois de calcular a perda, a rede precisa descobrir como cada peso
+contribuiu para o erro. Para isso, calcula os gradientes usando a
+**regra da cadeia** do cálculo diferencial.
+
+Um gradiente indica como a função de perda varia quando determinado
+parâmetro sofre uma pequena alteração. Ele fornece a direção de maior
+crescimento da perda; por isso, a atualização dos pesos ocorre no
+sentido oposto.
+
+#### Gradiente em relação à saída prevista
+
+``` python
+grad_y_pred = 2.0 * (y_pred - y)
+```
+
+A função de perda é a soma dos quadrados das diferenças. Sua derivada em
+relação à previsão é:
+
+\[ `\frac{\partial L}{\partial \hat{y}}`{=tex} = 2(`\hat{y}`{=tex} - y)
+\]
+
+O resultado indica como a perda varia em relação a cada elemento de
+`y_pred`.
+
+#### Gradiente dos pesos da segunda camada
+
+``` python
+grad_w2 = h.T.dot(grad_y_pred)
+```
+
+A saída da rede é calculada por:
+
+\[ `\hat{y}`{=tex} = hW_2 \]
+
+Assim, o gradiente dos pesos da segunda camada é:
+
+\[ `\frac{\partial L}{\partial W_2}`{=tex} = h\^T
+`\frac{\partial L}{\partial \hat{y}}`{=tex} \]
+
+O operador `.T` representa a transposta da matriz.
+
+Dimensões:
+
+``` text
+(100, 64) × (64, 10) = (100, 10)
+```
+
+O gradiente possui a mesma dimensão de `w2`, pois existe um gradiente
+para cada peso dessa matriz.
+
+#### Gradiente em relação à camada oculta
+
+``` python
+grad_h = grad_y_pred.dot(w2.T)
+```
+
+A camada oculta também contribui para o resultado final. Para calcular
+como a perda varia em relação a `h`, utiliza-se a matriz de pesos `w2`
+transposta:
+
+\[ `\frac{\partial L}{\partial h}`{=tex} =
+`\frac{\partial L}{\partial \hat{y}}`{=tex}W_2\^T \]
+
+Dimensões:
+
+``` text
+(64, 10) × (10, 100) = (64, 100)
+```
+
+Esse gradiente será utilizado para calcular o gradiente dos pesos da
+primeira camada.
+
+#### Gradiente dos pesos da primeira camada
+
+``` python
+grad_w1 = x.T.dot(grad_h * h * (1 - h))
+```
+
+A primeira camada possui uma função de ativação sigmoide. Portanto, para
+propagar o gradiente até `w1`, é necessário considerar a derivada da
+sigmoide:
+
+\[ `\sigma`{=tex}'(z) = `\sigma`{=tex}(z)(1-`\sigma`{=tex}(z)) \]
+
+Como `h` já contém o resultado da sigmoide, a expressão:
+
+``` python
+h * (1 - h)
+```
+
+calcula sua derivada.
+
+A expressão completa:
+
+``` python
+grad_h * h * (1 - h)
+```
+
+combina o gradiente recebido da camada seguinte com a derivada da função
+de ativação.
+
+Por fim, a multiplicação por `x.T` calcula o gradiente dos pesos:
+
+\[ `\frac{\partial L}{\partial W_1}`{=tex} = X\^T `\left[
+\frac{\partial L}{\partial h}
+\odot h \odot (1-h)
+\right]`{=tex}\]
+
+O símbolo (`\odot`{=tex}) representa a multiplicação elemento a
+elemento.
+
+Dimensões:
+
+``` text
+(1000, 64) × (64, 100) = (1000, 100)
+```
+
+Assim, `grad_w1` possui a mesma dimensão de `w1`.
+
+### 5.4. Atualização dos pesos
+
+``` python
+w1 -= 1e-4 * grad_w1
+w2 -= 1e-4 * grad_w2
+```
+
+Depois de calcular os gradientes, os pesos são atualizados para reduzir
+a perda.
+
+A regra utilizada é:
+
+\[ W\_{`\text{novo}`{=tex}} = W\_{`\text{atual}`{=tex}} -
+`\alpha `{=tex}`\nabla `{=tex}L \]
+
+Em que:
+
+-   \(W\) representa a matriz de pesos;
+-   (`\alpha`{=tex}) representa a taxa de aprendizado (*learning rate*);
+-   (`\nabla `{=tex}L) representa o gradiente da função de perda.
+
+No código, a taxa de aprendizado é:
+
+``` python
+1e-4
+```
+
+Isso equivale a:
+
+\[ 0{,}0001 \]
+
+O operador `-=` realiza a atualização diretamente na matriz existente.
+
+**Por que subtrair o gradiente?** O gradiente aponta para a direção de
+maior crescimento da função. Subtraí-lo faz com que os pesos se
+movimentem na direção oposta, buscando diminuir a perda.
+
+------------------------------------------------------------------------
+
+## 6. Resumo do fluxo de execução
+
+O processo completo pode ser resumido assim:
+
+``` text
+              INICIALIZAÇÃO
+       Dados de entrada, valores esperados
+                  e pesos
+                    |
+                    v
+             PROPAGAÇÃO DIRETA
+             x → camada oculta
+                    |
+                    v
+             Função sigmoide
+                    |
+                    v
+             Camada de saída
+                    |
+                    v
+               y_pred
+                    |
+                    v
+             CÁLCULO DA LOSS
+             Comparação com y
+                    |
+                    v
+             BACKPROPAGATION
+          Cálculo dos gradientes
+                    |
+                    v
+           ATUALIZAÇÃO DOS PESOS
+             w1 e w2 são ajustados
+                    |
+                    v
+             Próxima iteração
+```
+
+Esse ciclo se repete até completar as 2000 iterações.
+
+------------------------------------------------------------------------
+
+## 7. Resultados observados
+
+Na execução registrada no arquivo de saída, a perda diminuiu
+progressivamente. Alguns valores observados foram:
+
+    Iteração   Perda (`loss`)
+  ---------- ----------------
+           0         34927,70
+           1         21679,31
+          10          9066,51
+         100          2449,78
+         200          1028,27
+         300           554,06
+         400           339,34
+         500           216,46
+         600           152,10
+         695           111,90
+
+A redução da perda indica que, nessa execução, as atualizações dos pesos
+estão aproximando as previsões dos valores esperados.
+
+Isso demonstra o funcionamento do processo de otimização. Entretanto,
+como os dados são aleatórios e não existe uma relação real entre entrada
+e saída, a redução da perda não deve ser interpretada como evidência de
+que a rede aprendeu um padrão útil ou que terá bom desempenho em dados
+novos.
+
+O trecho de saída disponível registra as iterações de 0 a 695. Embora o
+código esteja configurado para executar 2000 iterações, esses valores
+não permitem afirmar qual foi a perda final da iteração 1999.
+
+------------------------------------------------------------------------
+
+## 8. Conceitos importantes para compreender o exemplo
+
+### Rede neural *feedforward*
+
+É uma arquitetura em que a informação percorre a rede em um único
+sentido: da entrada para a saída. Neste exemplo, não existem conexões
+recorrentes nem ciclos entre as camadas.
+
+### Neurônio artificial
+
+Um neurônio recebe valores, combina esses valores por meio de pesos e
+aplica uma função de ativação. Na camada oculta deste exemplo, a
+operação é:
+
+\[ h = `\sigma`{=tex}(XW_1) \]
+
+### Pesos (*weights*)
+
+São parâmetros ajustáveis da rede. Eles controlam a influência de cada
+conexão entre os neurônios. O treinamento modifica esses valores para
+reduzir a função de perda.
+
+### Função de ativação
+
+É aplicada ao resultado de uma transformação linear. A sigmoide
+utilizada na camada oculta introduz não linearidade no modelo.
+
+### Função de perda
+
+É uma medida numérica do erro entre as previsões e os valores esperados.
+Neste exemplo, utiliza-se a soma dos erros quadráticos.
+
+### Backpropagation
+
+É o procedimento de cálculo dos gradientes da perda em relação aos
+parâmetros da rede, propagando as derivadas da saída em direção às
+camadas anteriores.
+
+### Descida do gradiente
+
+É o método de otimização que utiliza os gradientes para atualizar os
+parâmetros na direção que tende a reduzir a função de perda.
+
+### Taxa de aprendizado
+
+Controla o tamanho de cada atualização dos pesos. Uma taxa muito alta
+pode causar oscilações ou impedir a convergência; uma taxa muito baixa
+pode tornar o treinamento lento.
+
+### Época e iteração
+
+Neste código, cada repetição do laço utiliza todo o conjunto de 64
+amostras uma vez. Em muitos contextos, isso também é chamado de uma
+época. O código, porém, controla explicitamente 2000 iterações de
+atualização.
+
+------------------------------------------------------------------------
+
+## 9. Limitações da implementação
+
+Apesar de demonstrar os fundamentos de uma rede neural, o exemplo é
+simplificado e possui algumas limitações:
+
+1.  **Dados aleatórios:** não há uma base de dados real nem uma tarefa
+    definida.
+2.  **Ausência de divisão entre treino e teste:** não é possível avaliar
+    a capacidade de generalização da rede.
+3.  **Sem camada de viés (*bias*):** a rede não possui termos de
+    deslocamento adicionados às transformações lineares.
+4.  **Uma única camada oculta:** a arquitetura é pequena e fixa.
+5.  **Taxa de aprendizado fixa:** o valor não muda durante o
+    treinamento.
+6.  **Sem regularização:** não há mecanismos como L1, L2 ou *dropout*.
+7.  **Sem normalização da perda:** a função soma os erros de todas as
+    amostras e saídas.
+8.  **Sem critérios de parada antecipada:** o laço executa todas as
+    iterações definidas, mesmo que a perda pare de melhorar.
+9.  **Sem tratamento de instabilidade numérica:** valores muito grandes
+    em `x.dot(w1)` podem causar problemas no cálculo da exponencial da
+    sigmoide.
+
+Também não há uma camada de saída com ativação específica. Isso é
+compatível com uma saída de regressão, mas não seria, por si só, uma
+configuração adequada para toda tarefa de classificação.
+
+------------------------------------------------------------------------
+
+## 10. Possíveis melhorias e experimentos
+
+O código pode ser utilizado como ponto de partida para estudar outras
+técnicas:
+
+-   **Adicionar bias:** incluir um vetor de viés em cada camada.
+-   **Usar a perda média:** dividir a soma dos erros pelo número de
+    elementos ou amostras, ajustando a interpretação da taxa de
+    aprendizado.
+-   **Testar outras ativações:** experimentar ReLU ou tanh na camada
+    oculta.
+-   **Alterar a taxa de aprendizado:** comparar valores como `1e-3`,
+    `1e-4` e `1e-5`, observando a estabilidade da perda.
+-   **Registrar a perda em uma lista:** permitir a criação de um gráfico
+    de evolução do treinamento.
+-   **Criar dados com uma relação conhecida:** gerar entradas e saídas
+    relacionadas para verificar se a rede consegue aprender essa
+    relação.
+-   **Separar treino e teste:** avaliar o comportamento da rede em
+    amostras que não participaram do ajuste dos pesos.
+-   **Implementar parada antecipada:** interromper o treinamento quando
+    a perda de validação deixar de melhorar.
+
+### Exemplo: armazenar a perda
+
+Uma pequena alteração permite guardar os valores da função de perda para
+análise posterior:
+
+``` python
+historico_loss = []
+
+for t in range(2000):
+    h = 1 / (1 + np.exp(-x.dot(w1)))
+    y_pred = h.dot(w2)
+    loss = np.square(y_pred - y).sum()
+
+    historico_loss.append(loss)
+
+    grad_y_pred = 2.0 * (y_pred - y)
+    grad_w2 = h.T.dot(grad_y_pred)
+    grad_h = grad_y_pred.dot(w2.T)
+    grad_w1 = x.T.dot(grad_h * h * (1 - h))
+
+    w1 -= 1e-4 * grad_w1
+    w2 -= 1e-4 * grad_w2
+```
+
+Depois, `historico_loss` pode ser utilizado para construir um gráfico
+com a evolução da perda ao longo das iterações.
+
+------------------------------------------------------------------------
+
+## 12. Conclusão
+
+O exemplo apresenta a implementação manual de uma rede neural com NumPy,
+permitindo observar como a propagação direta, a função de perda, a
+retropropagação e a descida do gradiente trabalham em conjunto.
+
+O principal aprendizado é compreender que o treinamento de uma rede
+neural consiste em ajustar seus parâmetros a partir do erro produzido
+pelas previsões. A propagação direta calcula a saída; a função de perda
+mede o erro; o backpropagation calcula como os pesos influenciam esse
+erro; e a descida do gradiente utiliza essas informações para atualizar
+os pesos.
+
+Mesmo sendo uma implementação pequena, ela demonstra a base matemática e
+computacional presente em bibliotecas mais completas de aprendizado
+profundo.
